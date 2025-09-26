@@ -263,6 +263,6 @@ The phased approach ensures manageable risk while delivering value early and oft
 
 ---
 
-**Contact**: [Your Name] - Engineering Lead  
+**Contact**: Andrey Tretyak - Engineering Lead  
 **Date**: September 26, 2025  
 **Status**: Proposal for Internal Review
