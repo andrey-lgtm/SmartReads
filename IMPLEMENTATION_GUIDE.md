@@ -12,7 +12,7 @@
 
 1. **Clone or download the repository**
 ```bash
-cd /path/to/TakeHomeAssessment
+cd /path/to/SmartReads
 ```
 
 2. **Install dependencies**
