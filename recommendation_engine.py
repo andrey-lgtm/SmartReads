@@ -241,7 +241,7 @@ class ContentBasedFilter:
         
         # Calculate average feature vector of reading history
         history_vectors = self.book_features[history_indices]
-        avg_profile = history_vectors.mean(axis=0)
+        avg_profile = np.asarray(history_vectors.mean(axis=0)).reshape(1, -1)
         
         # Calculate similarity with all books
         similarities = cosine_similarity(avg_profile, self.book_features).flatten()
