@@ -279,15 +279,15 @@ class LLMRecommender:
         score_boost = 0.0
         
         # Check genre match
-        genre_match = any(g in student.preferred_genres for g in book.genre)
-        if genre_match:
+        matched_genres = [g for g in book.genre if g in student.preferred_genres]
+        if matched_genres:
             score_boost += 0.1
-            reasons.append(f"matches your interest in {book.genre[0]}")
+            reasons.append(f"matches your preferred genre of {matched_genres[0]}")
         
         # Check reading level appropriateness
         if book.reading_level == student.reading_level:
             score_boost += 0.05
-            reasons.append("appropriate reading level")
+            reasons.append("is at your reading level")
         
         # Check interests alignment
         interest_keywords = set(word.lower() for interest in student.interests for word in interest.split())
