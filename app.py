@@ -434,6 +434,47 @@ HTML_CONTENT = """
             font-size: 0.9em;
         }
         
+        .tag-subject {
+            display: inline-block;
+            background: #e0e0e0;
+            color: #555;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin: 2px;
+            font-size: 0.85em;
+            cursor: help;
+        }
+        
+        .tag-highlight {
+            display: inline-block;
+            background: #ffd700;
+            color: #333;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin: 2px;
+            font-size: 0.85em;
+            font-weight: bold;
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+            animation: pulse 2s ease-in-out infinite;
+            cursor: help;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 8px rgba(255, 215, 0, 0.5); }
+            50% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.8); }
+        }
+        
+        .book-subjects {
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            color: #555;
+        }
+        
+        .book-subjects strong {
+            color: #333;
+            margin-right: 5px;
+        }
+        
         .recommendations {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -719,33 +760,51 @@ HTML_CONTENT = """
                 return;
             }
             
-            const html = recommendations.map((rec, index) => `
-                <div class="recommendation-card">
-                    <div class="book-title">${index + 1}. ${rec.book.title}</div>
-                    <div class="book-author">by ${rec.book.author}</div>
-                    <div class="book-details">
-                        📖 ${rec.book.page_count} pages | 📚 ${rec.book.reading_level}
-                    </div>
-                    <div class="book-genres">
-                        ${rec.book.genre.map(g => `<span class="tag">${g}</span>`).join('')}
-                    </div>
-                    <div class="recommendation-reason">
-                        💡 ${rec.reason}
-                    </div>
-                    <div class="score-bar">
-                        <span class="score-label">Match: ${(rec.score * 100).toFixed(0)}%</span>
-                        <div class="score-progress">
-                            <div class="score-fill" style="width: ${rec.score * 100}%"></div>
+            const html = recommendations.map((rec, index) => {
+                // Get student interests for highlighting matches
+                const studentInterests = currentStudent ? currentStudent.interests.map(i => i.toLowerCase()) : [];
+                
+                // Highlight matching subjects/themes
+                const subjectTags = rec.book.subject.map(subject => {
+                    const isMatch = studentInterests.some(interest => 
+                        subject.toLowerCase().includes(interest) || 
+                        interest.includes(subject.toLowerCase())
+                    );
+                    const highlightClass = isMatch ? 'tag-highlight' : 'tag-subject';
+                    return `<span class="${highlightClass}" title="${isMatch ? '✓ Matches your interests' : 'Theme'}">${subject}</span>`;
+                }).join('');
+                
+                return `
+                    <div class="recommendation-card">
+                        <div class="book-title">${index + 1}. ${rec.book.title}</div>
+                        <div class="book-author">by ${rec.book.author}</div>
+                        <div class="book-details">
+                            📖 ${rec.book.page_count} pages | 📚 ${rec.book.reading_level}
+                        </div>
+                        <div class="book-genres">
+                            ${rec.book.genre.map(g => `<span class="tag">${g}</span>`).join('')}
+                        </div>
+                        <div class="book-subjects">
+                            <strong>Key Themes:</strong> ${subjectTags}
+                        </div>
+                        <div class="recommendation-reason">
+                            💡 ${rec.reason}
+                        </div>
+                        <div class="score-bar">
+                            <span class="score-label">Match: ${(rec.score * 100).toFixed(0)}%</span>
+                            <div class="score-progress">
+                                <div class="score-fill" style="width: ${rec.score * 100}%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="strategy-badge">${rec.strategy}</span>
+                            <span style="float: right; color: #888; font-size: 0.9em;">
+                                Confidence: ${(rec.confidence * 100).toFixed(0)}%
+                            </span>
                         </div>
                     </div>
-                    <div>
-                        <span class="strategy-badge">${rec.strategy}</span>
-                        <span style="float: right; color: #888; font-size: 0.9em;">
-                            Confidence: ${(rec.confidence * 100).toFixed(0)}%
-                        </span>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
             
             container.innerHTML = html;
         }
