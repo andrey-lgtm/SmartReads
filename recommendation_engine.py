@@ -38,6 +38,8 @@ class Book:
     available_copies: int = 1
     total_copies: int = 1
     popularity_score: float = 0.0
+    average_rating: float = 0.0
+    rating_count: int = 0
     
     def to_dict(self) -> Dict:
         """Convert book to dictionary"""
@@ -55,7 +57,9 @@ class Book:
             'language': self.language,
             'available_copies': self.available_copies,
             'total_copies': self.total_copies,
-            'popularity_score': self.popularity_score
+            'popularity_score': self.popularity_score,
+            'average_rating': self.average_rating,
+            'rating_count': self.rating_count
         }
 
 @dataclass
@@ -372,6 +376,20 @@ class SmartReadsRecommendationEngine:
         for book_id, count in borrow_counts.items():
             if book_id in self.books_catalog:
                 self.books_catalog[book_id].popularity_score = count / max_count
+        
+        # Calculate average ratings
+        rating_sums = defaultdict(float)
+        rating_counts = defaultdict(int)
+        for record in records:
+            if record.rating is not None:
+                rating_sums[record.book_id] += record.rating
+                rating_counts[record.book_id] += 1
+        
+        for book_id, total in rating_sums.items():
+            if book_id in self.books_catalog:
+                count = rating_counts[book_id]
+                self.books_catalog[book_id].average_rating = total / count
+                self.books_catalog[book_id].rating_count = count
         
         logger.info(f"Loaded {len(records)} borrowing records")
     

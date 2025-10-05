@@ -61,6 +61,8 @@ class BookResponse(BaseModel):
     publication_year: int
     page_count: int
     popularity_score: float
+    average_rating: float = 0.0
+    rating_count: int = 0
 
 class StudentResponse(BaseModel):
     student_id: str
@@ -217,7 +219,9 @@ async def get_books(limit: int = 50):
             description=book.description,
             publication_year=book.publication_year,
             page_count=book.page_count,
-            popularity_score=book.popularity_score
+            popularity_score=book.popularity_score,
+            average_rating=book.average_rating,
+            rating_count=book.rating_count
         ))
     
     return books
@@ -245,7 +249,9 @@ async def get_recommendations(student_id: str, n: int = 10):
                     description=rec.book.description,
                     publication_year=rec.book.publication_year,
                     page_count=rec.book.page_count,
-                    popularity_score=rec.book.popularity_score
+                    popularity_score=rec.book.popularity_score,
+                    average_rating=rec.book.average_rating,
+                    rating_count=rec.book.rating_count
                 ),
                 score=rec.score,
                 reason=rec.reason,
@@ -774,6 +780,26 @@ HTML_CONTENT = """
                     return `<span class="${highlightClass}" title="${isMatch ? '✓ Matches your interests' : 'Theme'}">${subject}</span>`;
                 }).join('');
                 
+                // Generate star rating display
+                const rating = rec.book.average_rating;
+                const ratingCount = rec.book.rating_count;
+                let ratingDisplay = '';
+                
+                if (rating > 0 && ratingCount > 0) {
+                    const fullStars = Math.floor(rating);
+                    const hasHalfStar = rating % 1 >= 0.5;
+                    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+                    
+                    ratingDisplay = `
+                        <div class="book-rating" style="margin: 8px 0; color: #ffa500;">
+                            ${'⭐'.repeat(fullStars)}${hasHalfStar ? '⭐' : ''}${'☆'.repeat(emptyStars)}
+                            <span style="color: #555; font-size: 0.9em; margin-left: 4px;">
+                                ${rating.toFixed(1)} (${ratingCount} ${ratingCount === 1 ? 'rating' : 'ratings'})
+                            </span>
+                        </div>
+                    `;
+                }
+                
                 return `
                     <div class="recommendation-card">
                         <div class="book-title">${index + 1}. ${rec.book.title}</div>
@@ -781,6 +807,7 @@ HTML_CONTENT = """
                         <div class="book-details">
                             📖 ${rec.book.page_count} pages | 📚 ${rec.book.reading_level}
                         </div>
+                        ${ratingDisplay}
                         <div class="book-genres">
                             ${rec.book.genre.map(g => `<span class="tag">${g}</span>`).join('')}
                         </div>
