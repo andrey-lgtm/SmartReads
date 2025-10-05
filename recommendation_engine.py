@@ -288,17 +288,27 @@ class LLMRecommender:
             score_boost += 0.1
             reasons.append(f"matches your preferred genre of {matched_genres[0]}")
         
-        # Check reading level appropriateness
+        # Check reading level appropriateness with more nuanced feedback
+        reading_level_map = {'K-2': 0, '3-5': 1, '6-8': 2, '9-12': 3}
+        student_level_idx = reading_level_map.get(student.reading_level, 0)
+        book_level_idx = reading_level_map.get(book.reading_level, 0)
+        
         if book.reading_level == student.reading_level:
-            score_boost += 0.05
+            score_boost += 0.1
             reasons.append("is at your reading level")
+        elif book_level_idx == student_level_idx + 1:
+            score_boost += 0.08
+            reasons.append("will challenge you at just the right level")
         
         # Check interests alignment
         interest_keywords = set(word.lower() for interest in student.interests for word in interest.split())
         description_words = set(book.description.lower().split())
-        if interest_keywords & description_words:
+        subject_words = set(word.lower() for subject in book.subject for word in subject.split())
+        
+        matched_interests = interest_keywords & (description_words | subject_words)
+        if matched_interests:
             score_boost += 0.15
-            matched = list(interest_keywords & description_words)[0]
+            matched = list(matched_interests)[0]
             reasons.append(f"relates to your interest in {matched}")
         
         # Generate explanation
@@ -341,6 +351,14 @@ class LLMRecommender:
 class SmartReadsRecommendationEngine:
     """Main recommendation engine combining all strategies"""
     
+    # Reading level progression mapping
+    READING_LEVELS = {
+        'K-2': 0,
+        '3-5': 1,
+        '6-8': 2,
+        '9-12': 3
+    }
+    
     def __init__(self):
         self.collaborative_filter = CollaborativeFilter()
         self.content_filter = ContentBasedFilter()
@@ -348,6 +366,27 @@ class SmartReadsRecommendationEngine:
         self.books_catalog: Dict[str, Book] = {}
         self.students: Dict[str, Student] = {}
         self.borrowing_records: List[BorrowingRecord] = []
+    
+    def is_reading_level_appropriate(self, student_level: str, book_level: str, allow_stretch: bool = True) -> bool:
+        """
+        Check if a book's reading level is appropriate for a student.
+        
+        Args:
+            student_level: Student's current reading level (e.g., 'K-2')
+            book_level: Book's reading level (e.g., '3-5')
+            allow_stretch: If True, allows books one level above student's level
+            
+        Returns:
+            True if the book is at or slightly above student's level (not below)
+        """
+        student_idx = self.READING_LEVELS.get(student_level, 0)
+        book_idx = self.READING_LEVELS.get(book_level, 0)
+        
+        # Book should be at student's level or at most one level above (never below)
+        if allow_stretch:
+            return student_idx <= book_idx <= student_idx + 1
+        else:
+            return book_idx == student_idx
         
     def load_catalog(self, books: List[Book]):
         """Load books into the catalog"""
@@ -397,45 +436,57 @@ class SmartReadsRecommendationEngine:
         """
         Generate personalized book recommendations
         Combines collaborative, content-based, and LLM strategies
+        Filters by reading level appropriateness
         """
         if student_id not in self.students:
             logger.warning(f"Student {student_id} not found")
-            return self._get_popular_books(n_recommendations)
+            return self._get_popular_books(n_recommendations, None)
         
         student = self.students[student_id]
         recommendations = []
         
-        # Strategy 1: Collaborative Filtering
-        collab_recs = self.collaborative_filter.recommend(student_id, n_recommendations * 2)
-        for book_id, score in collab_recs[:n_recommendations//2]:
+        # Strategy 1: Collaborative Filtering (with reading level filter)
+        collab_recs = self.collaborative_filter.recommend(student_id, n_recommendations * 3)
+        collab_count = 0
+        for book_id, score in collab_recs:
+            if collab_count >= n_recommendations // 2:
+                break
             if book_id in self.books_catalog:
                 book = self.books_catalog[book_id]
-                enhanced_score, explanation = self.llm_recommender.enhance_recommendation(student, book, score)
-                recommendations.append(Recommendation(
-                    book=book,
-                    score=enhanced_score,
-                    reason=explanation,
-                    strategy='collaborative',
-                    confidence=min(1.0, len(student.reading_history) / 10)  # Higher confidence with more history
-                ))
-        
-        # Strategy 2: Content-Based Filtering
-        content_recs = self.content_filter.recommend(student, self.books_catalog, n_recommendations * 2)
-        for book_id, score in content_recs[:n_recommendations//2]:
-            if book_id in self.books_catalog:
-                book = self.books_catalog[book_id]
-                # Avoid duplicates
-                if not any(r.book.book_id == book_id for r in recommendations):
+                # Filter by reading level appropriateness
+                if self.is_reading_level_appropriate(student.reading_level, book.reading_level):
                     enhanced_score, explanation = self.llm_recommender.enhance_recommendation(student, book, score)
                     recommendations.append(Recommendation(
                         book=book,
                         score=enhanced_score,
                         reason=explanation,
-                        strategy='content',
-                        confidence=min(1.0, len(student.reading_history) / 5)
+                        strategy='collaborative',
+                        confidence=min(1.0, len(student.reading_history) / 10)  # Higher confidence with more history
                     ))
+                    collab_count += 1
         
-        # Strategy 3: Diversity Enhancement - Add books from unexplored genres
+        # Strategy 2: Content-Based Filtering (with reading level filter)
+        content_recs = self.content_filter.recommend(student, self.books_catalog, n_recommendations * 3)
+        content_count = 0
+        for book_id, score in content_recs:
+            if content_count >= n_recommendations // 2:
+                break
+            if book_id in self.books_catalog:
+                book = self.books_catalog[book_id]
+                # Avoid duplicates and filter by reading level
+                if not any(r.book.book_id == book_id for r in recommendations):
+                    if self.is_reading_level_appropriate(student.reading_level, book.reading_level):
+                        enhanced_score, explanation = self.llm_recommender.enhance_recommendation(student, book, score)
+                        recommendations.append(Recommendation(
+                            book=book,
+                            score=enhanced_score,
+                            reason=explanation,
+                            strategy='content',
+                            confidence=min(1.0, len(student.reading_history) / 5)
+                        ))
+                        content_count += 1
+        
+        # Strategy 3: Diversity Enhancement - Add books from unexplored genres (with reading level filter)
         if len(recommendations) < n_recommendations:
             explored_genres = set()
             for book_id in student.reading_history:
@@ -445,7 +496,8 @@ class SmartReadsRecommendationEngine:
             for book in self.books_catalog.values():
                 if book.book_id not in student.reading_history:
                     new_genres = set(book.genre) - explored_genres
-                    if new_genres and book.reading_level == student.reading_level:
+                    # Filter by reading level appropriateness
+                    if new_genres and self.is_reading_level_appropriate(student.reading_level, book.reading_level):
                         recommendations.append(Recommendation(
                             book=book,
                             score=0.7 + book.popularity_score * 0.3,
@@ -460,10 +512,25 @@ class SmartReadsRecommendationEngine:
         recommendations.sort(key=lambda x: x.score, reverse=True)
         return recommendations[:n_recommendations]
     
-    def _get_popular_books(self, n: int) -> List[Recommendation]:
-        """Fallback to popular books for cold start"""
+    def _get_popular_books(self, n: int, student_reading_level: Optional[str] = None) -> List[Recommendation]:
+        """
+        Fallback to popular books for cold start
+        
+        Args:
+            n: Number of recommendations to return
+            student_reading_level: If provided, filter books by reading level appropriateness
+        """
+        # Filter books by reading level if provided
+        if student_reading_level:
+            available_books = [
+                book for book in self.books_catalog.values()
+                if self.is_reading_level_appropriate(student_reading_level, book.reading_level)
+            ]
+        else:
+            available_books = list(self.books_catalog.values())
+        
         popular_books = sorted(
-            self.books_catalog.values(), 
+            available_books, 
             key=lambda x: x.popularity_score, 
             reverse=True
         )[:n]
