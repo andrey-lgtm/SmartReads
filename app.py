@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
+from contextlib import asynccontextmanager
 import json
 import os
 from datetime import datetime
@@ -20,11 +21,19 @@ from recommendation_engine import (
 )
 from data_generator import generate_sample_data
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    initialize_engine()
+    yield
+    # Shutdown (if needed)
+
 # Initialize FastAPI app
 app = FastAPI(
     title="SmartReads Book Recommendation System",
     description="AI-powered book recommendations for school districts",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -141,11 +150,6 @@ def initialize_engine():
     recommendation_engine.load_borrowing_history(records)
     
     print(f"Engine initialized with {len(books)} books, {len(students)} students, and {len(records)} borrowing records")
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the engine on startup"""
-    initialize_engine()
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
