@@ -800,6 +800,38 @@ HTML_CONTENT = """
                     `;
                 }
                 
+                // Generate popularity display
+                const popularity = rec.book.popularity_score;
+                let popularityDisplay = '';
+                
+                if (popularity > 0) {
+                    const popularityPercent = (popularity * 100).toFixed(0);
+                    let popularityLabel = 'Popular';
+                    let popularityColor = '#28a745';
+                    
+                    if (popularity >= 0.7) {
+                        popularityLabel = '🔥 Very Popular';
+                        popularityColor = '#ff4500';
+                    } else if (popularity >= 0.4) {
+                        popularityLabel = '📈 Popular';
+                        popularityColor = '#ffa500';
+                    } else {
+                        popularityLabel = '📚 Borrowed';
+                        popularityColor = '#667eea';
+                    }
+                    
+                    popularityDisplay = `
+                        <div class="book-popularity" style="margin: 8px 0; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.9em; color: ${popularityColor}; font-weight: bold;">
+                                ${popularityLabel}
+                            </span>
+                            <div style="flex: 1; height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; max-width: 100px;">
+                                <div style="height: 100%; background: ${popularityColor}; width: ${popularityPercent}%;"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
                 return `
                     <div class="recommendation-card">
                         <div class="book-title">${index + 1}. ${rec.book.title}</div>
@@ -808,6 +840,7 @@ HTML_CONTENT = """
                             📖 ${rec.book.page_count} pages | 📚 ${rec.book.reading_level}
                         </div>
                         ${ratingDisplay}
+                        ${popularityDisplay}
                         <div class="book-genres">
                             ${rec.book.genre.map(g => `<span class="tag">${g}</span>`).join('')}
                         </div>
